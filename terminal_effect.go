@@ -1,0 +1,235 @@
+package libghostty
+
+// C trampolines for terminal effects.
+//
+// Each exported Go function here is passed to the C side as a function
+// pointer. The C library calls it with a userdata void*, which is a
+// cgo.Handle pointing back to the owning *Terminal. The trampoline
+// recovers the Terminal and dispatches to the user-supplied Go effect handler.
+
+/*
+#include <stdlib.h>
+#include <ghostty/vt.h>
+
+// Forward declarations for the Go trampolines so we can take their
+// addresses on the C side.
+extern void goWritePtyTrampoline(GhosttyTerminal, void*, uint8_t*, size_t);
+extern void goBellTrampoline(GhosttyTerminal, void*);
+extern void goTitleChangedTrampoline(GhosttyTerminal, void*);
+extern GhosttyString goEnquiryTrampoline(GhosttyTerminal, void*);
+extern GhosttyString goXtversionTrampoline(GhosttyTerminal, void*);
+extern bool goSizeTrampoline(GhosttyTerminal, void*, GhosttySizeReportSize*);
+extern bool goColorSchemeTrampoline(GhosttyTerminal, void*, GhosttyColorScheme*);
+extern bool goDeviceAttributesTrampoline(GhosttyTerminal, void*, GhosttyDeviceAttributes*);
+
+// Helpers to set each effect via ghostty_terminal_set.
+// We need these because cgo cannot take the address of a Go-exported
+// function directly as a C function pointer.
+static inline GhosttyResult set_write_pty(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_WRITE_PTY, (const void*)goWritePtyTrampoline);
+}
+static inline GhosttyResult set_bell(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_BELL, (const void*)goBellTrampoline);
+}
+static inline GhosttyResult set_title_changed(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_TITLE_CHANGED, (const void*)goTitleChangedTrampoline);
+}
+static inline GhosttyResult set_enquiry(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_ENQUIRY, (const void*)goEnquiryTrampoline);
+}
+static inline GhosttyResult set_xtversion(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_XTVERSION, (const void*)goXtversionTrampoline);
+}
+static inline GhosttyResult set_size(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_SIZE, (const void*)goSizeTrampoline);
+}
+static inline GhosttyResult set_color_scheme(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_COLOR_SCHEME, (const void*)goColorSchemeTrampoline);
+}
+static inline GhosttyResult set_device_attributes(GhosttyTerminal t) {
+	return ghostty_terminal_set(t, GHOSTTY_TERMINAL_OPT_DEVICE_ATTRIBUTES, (const void*)goDeviceAttributesTrampoline);
+}
+
+// Helper to clear an effect by setting it to NULL.
+static inline GhosttyResult clear_effect(GhosttyTerminal t, GhosttyTerminalOption opt) {
+	return ghostty_terminal_set(t, opt, NULL);
+}
+*/
+import "C"
+
+import (
+	"runtime/cgo"
+	"unsafe"
+)
+
+// syncEffects registers or clears each C effect based on whether
+// the corresponding Go effect handler is set.
+func (t *Terminal) syncEffects() {
+	if t.onWritePty != nil {
+		C.set_write_pty(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_WRITE_PTY)
+	}
+	if t.onBell != nil {
+		C.set_bell(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_BELL)
+	}
+	if t.onTitleChanged != nil {
+		C.set_title_changed(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_TITLE_CHANGED)
+	}
+	if t.onEnquiry != nil {
+		C.set_enquiry(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_ENQUIRY)
+	}
+	if t.onXtversion != nil {
+		C.set_xtversion(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_XTVERSION)
+	}
+	if t.onSize != nil {
+		C.set_size(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_SIZE)
+	}
+	if t.onColorScheme != nil {
+		C.set_color_scheme(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_COLOR_SCHEME)
+	}
+	if t.onDeviceAttributes != nil {
+		C.set_device_attributes(t.ptr)
+	} else {
+		C.clear_effect(t.ptr, C.GHOSTTY_TERMINAL_OPT_DEVICE_ATTRIBUTES)
+	}
+}
+
+// terminalFromUserdata recovers a *Terminal from the C userdata pointer.
+func terminalFromUserdata(userdata unsafe.Pointer) *Terminal {
+	return cgo.Handle(userdata).Value().(*Terminal)
+}
+
+//export goWritePtyTrampoline
+func goWritePtyTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer, data *C.uint8_t, length C.size_t) {
+	t := terminalFromUserdata(userdata)
+	if t.onWritePty != nil {
+		t.onWritePty(C.GoBytes(unsafe.Pointer(data), C.int(length)))
+	}
+}
+
+//export goBellTrampoline
+func goBellTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer) {
+	t := terminalFromUserdata(userdata)
+	if t.onBell != nil {
+		t.onBell()
+	}
+}
+
+//export goTitleChangedTrampoline
+func goTitleChangedTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer) {
+	t := terminalFromUserdata(userdata)
+	if t.onTitleChanged != nil {
+		t.onTitleChanged()
+	}
+}
+
+//export goEnquiryTrampoline
+func goEnquiryTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer) C.GhosttyString {
+	t := terminalFromUserdata(userdata)
+	if t.onEnquiry == nil {
+		return C.GhosttyString{}
+	}
+	return t.effectString(t.onEnquiry())
+}
+
+//export goXtversionTrampoline
+func goXtversionTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer) C.GhosttyString {
+	t := terminalFromUserdata(userdata)
+	if t.onXtversion == nil {
+		return C.GhosttyString{}
+	}
+	return t.effectString([]byte(t.onXtversion()))
+}
+
+//export goSizeTrampoline
+func goSizeTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer, outSize *C.GhosttySizeReportSize) C.bool {
+	t := terminalFromUserdata(userdata)
+	if t.onSize == nil {
+		return C.bool(false)
+	}
+	size, ok := t.onSize()
+	if !ok {
+		return C.bool(false)
+	}
+	outSize.rows = C.uint16_t(size.Rows)
+	outSize.columns = C.uint16_t(size.Columns)
+	outSize.cell_width = C.uint32_t(size.CellWidth)
+	outSize.cell_height = C.uint32_t(size.CellHeight)
+	return C.bool(true)
+}
+
+//export goColorSchemeTrampoline
+func goColorSchemeTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer, outScheme *C.GhosttyColorScheme) C.bool {
+	t := terminalFromUserdata(userdata)
+	if t.onColorScheme == nil {
+		return C.bool(false)
+	}
+	scheme, ok := t.onColorScheme()
+	if !ok {
+		return C.bool(false)
+	}
+	*outScheme = C.GhosttyColorScheme(scheme)
+	return C.bool(true)
+}
+
+//export goDeviceAttributesTrampoline
+func goDeviceAttributesTrampoline(_ C.GhosttyTerminal, userdata unsafe.Pointer, outAttrs *C.GhosttyDeviceAttributes) C.bool {
+	t := terminalFromUserdata(userdata)
+	if t.onDeviceAttributes == nil {
+		return C.bool(false)
+	}
+	attrs, ok := t.onDeviceAttributes()
+	if !ok {
+		return C.bool(false)
+	}
+
+	// Primary (DA1).
+	outAttrs.primary.conformance_level = C.uint16_t(attrs.Primary.ConformanceLevel)
+	outAttrs.primary.num_features = C.size_t(attrs.Primary.NumFeatures)
+	for i := 0; i < attrs.Primary.NumFeatures && i < 64; i++ {
+		outAttrs.primary.features[i] = C.uint16_t(attrs.Primary.Features[i])
+	}
+
+	// Secondary (DA2).
+	outAttrs.secondary.device_type = C.uint16_t(attrs.Secondary.DeviceType)
+	outAttrs.secondary.firmware_version = C.uint16_t(attrs.Secondary.FirmwareVersion)
+	outAttrs.secondary.rom_cartridge = C.uint16_t(attrs.Secondary.ROMCartridge)
+
+	// Tertiary (DA3).
+	outAttrs.tertiary.unit_id = C.uint32_t(attrs.Tertiary.UnitID)
+
+	return C.bool(true)
+}
+
+// effectString copies data into C memory, updates effectBuf, and
+// returns a GhosttyString pointing to it. The previous effectBuf
+// is freed. Returns a zero-length GhosttyString if data is empty.
+func (t *Terminal) effectString(data []byte) C.GhosttyString {
+	if t.effectBuf != nil {
+		C.free(t.effectBuf)
+	}
+
+	if len(data) == 0 {
+		return C.GhosttyString{}
+	}
+
+	cmem := C.CBytes(data)
+	t.effectBuf = cmem
+	return C.GhosttyString{
+		ptr: (*C.uint8_t)(cmem),
+		len: C.size_t(len(data)),
+	}
+}
