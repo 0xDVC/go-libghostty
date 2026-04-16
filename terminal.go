@@ -367,37 +367,6 @@ type Scrollbar struct {
 	Len uint64
 }
 
-// KittyKeyFlags holds the current Kitty keyboard protocol flags.
-// These can be combined using bitwise OR.
-// C: GhosttyKittyKeyFlags (uint8_t)
-type KittyKeyFlags uint8
-
-// Kitty keyboard protocol flag constants.
-const (
-	// KittyKeyDisabled means the Kitty keyboard protocol is disabled.
-	KittyKeyDisabled KittyKeyFlags = C.GHOSTTY_KITTY_KEY_DISABLED
-
-	// KittyKeyDisambiguate enables disambiguating escape codes.
-	KittyKeyDisambiguate KittyKeyFlags = C.GHOSTTY_KITTY_KEY_DISAMBIGUATE
-
-	// KittyKeyReportEvents enables reporting key press and release events.
-	KittyKeyReportEvents KittyKeyFlags = C.GHOSTTY_KITTY_KEY_REPORT_EVENTS
-
-	// KittyKeyReportAlternates enables reporting alternate key codes.
-	KittyKeyReportAlternates KittyKeyFlags = C.GHOSTTY_KITTY_KEY_REPORT_ALTERNATES
-
-	// KittyKeyReportAll enables reporting all key events including those
-	// normally handled by the terminal.
-	KittyKeyReportAll KittyKeyFlags = C.GHOSTTY_KITTY_KEY_REPORT_ALL
-
-	// KittyKeyReportAssociated enables reporting associated text with
-	// key events.
-	KittyKeyReportAssociated KittyKeyFlags = C.GHOSTTY_KITTY_KEY_REPORT_ASSOCIATED
-
-	// KittyKeyAll has all Kitty keyboard protocol flags enabled.
-	KittyKeyAll KittyKeyFlags = C.GHOSTTY_KITTY_KEY_ALL
-)
-
 // KittyGraphics returns the Kitty graphics image storage for the
 // terminal's active screen. The returned handle is borrowed from
 // the terminal and remains valid until the next mutating call
